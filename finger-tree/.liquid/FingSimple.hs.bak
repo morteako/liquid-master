@@ -1,4 +1,4 @@
-{-@ LIQUID "--no-termination" @-}
+{-@ LIQUID "--total" @-}
 {-@ LIQUID "--reflection"     @-}
 {-@ LIQUID "--no-adt"         @-}   -- Tells LH to NOT embed `FingerTree` natively to SMT (since SMT can't handle polymorphic recursion)
 {-@ LIQUID "--ple"            @-}   -- Enables "logical evaluation", a method for "type-level computation" with the reflected functions
@@ -31,11 +31,8 @@ data FingerTree a
     | Deep (Digit a) (FingerTree (Node a)) (Digit a)
     deriving Show
 
-{-@ measure ftRec @-}
-ftRec :: FingerTree a -> Int
-ftRec Empty = 0
-ftRec (Single _) = 1
-ftRec (Deep _ m _) = 2 + ftRec m
+-- {-@ lazy un @-}
+-- un = un
 
 {-@ type FT a N = {ft:FingerTree a | fingerTreeSize ft == N } @-}
 
@@ -110,20 +107,17 @@ a <| Deep pr m sf     =
 
 {-@ lem_add_to1 ::  x:a -> t:FingerTree a -> { size to1 (x <| t) == size to1 t + to1 x }  @-}
 lem_add_to1 :: a -> FingerTree a -> Proof
-lem_add_to1 a t = lem_add to1 a t
+lem_add_to1 a t = lem_add t to1 a
 
-
-{-@ lem_add :: f:(a -> Int) -> x:a -> t:FingerTree a -> { size f (x <| t) == size f t + f x } / [ftRec t]  @-}
-lem_add :: (a -> Int) -> a -> FingerTree a -> Proof
-lem_add f a Empty = trivial
-lem_add f a (Single _) = trivial
-lem_add f a (Deep (Four b c d e) m sf) = 
-    (f a + f b + size (nodeS f) (Node3 c d e <| m) + digitS f sf) ? (lem_add (nodeS f) (Node3 c d e) m) ===
-    (f a + f b + size (nodeS f) m + nodeS f (Node3 c d e) + digitS f sf)  *** QED
-lem_add f a (Deep l m sf) = consDigit a l *** QED
-
-
-
+{-@ lem_add :: t:FingerTree a -> f:(a -> Int) -> x:a -> { size f (x <| t) == size f t + f x }  @-}
+lem_add :: FingerTree a -> (a -> Int) -> a ->  Proof
+lem_add Empty f a  = trivial
+lem_add (Single _) f a  = trivial
+lem_add (Deep (Four b c d e) m sf) f a  = 
+    (f a + f b + size (nodeS f) (Node3 c d e <| m) + digitS f sf) ===
+    (f a + f b + size (nodeS f) (Node3 c d e <| m) + digitS f sf) ? (lem_add m (nodeS f) (Node3 c d e)) ===
+    (f a + f b + size (nodeS f) m + nodeS f (Node3 c d e) + digitS f sf) *** QED
+lem_add  (Deep l m sf) f a = consDigit a l *** QED
 
 
 (|>) ::FingerTree a -> a -> FingerTree a
@@ -154,7 +148,8 @@ snocDigit (Three a b c) d = Four a b c d
 lem_add_r_to1 :: a -> FingerTree a -> Proof
 lem_add_r_to1 a t = lem_add_r to1 a t
 
-{-@ lem_add_r :: f:(a -> Int) -> x:a -> t:FingerTree a -> { size f (t |> x) == size f t + f x } / [ftRec t]  @-}
+{-@ lazy lem_add_r @-}
+{-@ lem_add_r :: f:(a -> Int) -> x:a -> t:FingerTree a -> { size f (t |> x) == size f t + f x } @-}
 lem_add_r :: (a -> Int) -> a -> FingerTree a -> Proof
 lem_add_r f a Empty = trivial
 lem_add_r f a (Single _) = trivial
