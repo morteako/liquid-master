@@ -31,6 +31,11 @@ data FingerTree a
     | Deep (Digit a) (FingerTree (Node a)) (Digit a)
     deriving Show
 
+{-@ measure ftRec @-}
+ftRec :: FingerTree a -> Int
+ftRec Empty = 0
+ftRec (Single _) = 1
+ftRec (Deep _ m _) = 2 + ftRec m
 
 {-@ type FT a N = {ft:FingerTree a | fingerTreeSize ft == N } @-}
 
@@ -100,18 +105,15 @@ a <| Deep pr m sf     =
 {-@ infix <| @-}
 {-@ reflect <| @-}
 
-{-@ reflect consDigit @-}
-{-@ consDigit :: v:a -> {d:Digit a | digitSize d < 4} -> {dd : Digit a | digitSize dd == digitSize d + 1} @-}
-consDigit :: a -> Digit a -> Digit a
-consDigit a (One b) = Two a b
-consDigit a (Two b c) = Three a b c
-consDigit a (Three b c d) = Four a b c d
+
+
 
 {-@ lem_add_to1 ::  x:a -> t:FingerTree a -> { size to1 (x <| t) == size to1 t + to1 x }  @-}
 lem_add_to1 :: a -> FingerTree a -> Proof
 lem_add_to1 a t = lem_add to1 a t
 
-{-@ lem_add :: f:(a -> Int) -> x:a -> t:FingerTree a -> { size f (x <| t) == size f t + f x }  @-}
+
+{-@ lem_add :: f:(a -> Int) -> x:a -> t:FingerTree a -> { size f (x <| t) == size f t + f x } / [ftRec t]  @-}
 lem_add :: (a -> Int) -> a -> FingerTree a -> Proof
 lem_add f a Empty = trivial
 lem_add f a (Single _) = trivial
@@ -121,12 +123,75 @@ lem_add f a (Deep (Four b c d e) m sf) =
 lem_add f a (Deep l m sf) = consDigit a l *** QED
 
 
+
+
+
+(|>) ::FingerTree a -> a -> FingerTree a
+Empty |> a              =  Single a
+Single a |> b           =  Deep (One a) Empty (One b)
+Deep pr m (Four a b c d) |> e = 
+    Deep pr (m |> Node3 a b c) (Two d e)
+Deep pr m sf |> x     =
+    Deep pr m (snocDigit sf x)
+{-@ reflect |> @-}
+{-@ infix |> @-}
+
+{-@ reflect consDigit @-}
+{-@ consDigit :: v:a -> {d:Digit a | digitSize d < 4} -> {dd : Digit a | digitSize dd == digitSize d + 1} @-}
+consDigit :: a -> Digit a -> Digit a
+consDigit a (One b) = Two a b
+consDigit a (Two b c) = Three a b c
+consDigit a (Three b c d) = Four a b c d
+
+{-@ reflect snocDigit @-}
+{-@ snocDigit :: {d:Digit a | digitSize d < 4} -> v:a -> {dd : Digit a | digitSize dd == digitSize d + 1} @-}
+snocDigit :: Digit a -> a -> Digit a
+snocDigit (One a) b = Two a b
+snocDigit (Two a b) c = Three a b c
+snocDigit (Three a b c) d = Four a b c d
+
+{-@ lem_add_r_to1 ::  x:a -> t:FingerTree a -> { size to1 (t |> x) == size to1 t + to1 x }  @-}
+lem_add_r_to1 :: a -> FingerTree a -> Proof
+lem_add_r_to1 a t = lem_add_r to1 a t
+
+{-@ lem_add_r :: f:(a -> Int) -> x:a -> t:FingerTree a -> { size f (t |> x) == size f t + f x } / [ftRec t]  @-}
+lem_add_r :: (a -> Int) -> a -> FingerTree a -> Proof
+lem_add_r f a Empty = trivial
+lem_add_r f a (Single _) = trivial
+lem_add_r f e (Deep l m (Four a b c d)) =
+    (f d + f e + size (nodeS f) (m |> Node3 a b c) + digitS f l) ? (lem_add_r (nodeS f) (Node3 a b c) m) ===
+    (f d + f e + size (nodeS f) m + nodeS f (Node3 a b c) + digitS f l) *** QED
+lem_add_r f a (Deep l m r) = snocDigit r a *** QED
+        
+
+{-@ fromListR :: xs:[a] -> {ft : FingerTree a | fingerTreeSize ft == len xs} @-}
+fromListR :: [a] -> FingerTree a
+fromListR xs = fromR xs ? lem_from_r xs
+
+
+{-@ reflect fromR @-}
+{-@ fromR :: xs:[a] -> FingerTree a @-}
+fromR :: [a] -> FingerTree a
+fromR []     = Empty
+fromR (x:xs) = fromR xs |> x
+
+{-@ lem_from_r :: xs:[a] -> { len xs == fingerTreeSize (fromR xs) } @-}
+lem_from_r :: [a]  -> Proof
+lem_from_r [] = trivial
+lem_from_r (x:xs) = lem_add_r_to1 x (fromR xs) &&& lem_from_r xs
+
 {-@ ft1 :: FT Int 10 @-}
 ft1 :: FingerTree Int
 ft1 = fromList [1,2,3,4,5,6,7,8,9,10]
+
+{-@ ft2 :: FT Int 10 @-}
+ft2 :: FingerTree Int
+ft2 = fromListR [1,2,3,4,5,6,7,8,9,10]
+
 
 
 main :: IO ()
 main = do
     print "test"
     print $ fingerTreeSize ft1 -- 10
+
