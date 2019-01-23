@@ -3,9 +3,8 @@
 {-@ LIQUID "--no-adt"         @-}   -- Tells LH to NOT embed `FingerTree` natively to SMT (since SMT can't handle polymorphic recursion)
 {-@ LIQUID "--ple"            @-}   -- Enables "logical evaluation", a method for "type-level computation" with the reflected functions
 
--- Can't find ProofCombinators
---import Liquid.Haskell.ProofCombinators 
-import ProofComb
+
+import Liquid.Haskell.ProofCombinators --local
 
 
 {-@ measure digitSize @-}
@@ -146,17 +145,16 @@ snocDigit (Three a b c) d = Four a b c d
 
 {-@ lem_add_r_to1 ::  x:a -> t:FingerTree a -> { size to1 (t |> x) == size to1 t + to1 x }  @-}
 lem_add_r_to1 :: a -> FingerTree a -> Proof
-lem_add_r_to1 a t = lem_add_r to1 a t
+lem_add_r_to1 a t = lem_add_r t to1 a
 
-{-@ lazy lem_add_r @-}
-{-@ lem_add_r :: f:(a -> Int) -> x:a -> t:FingerTree a -> { size f (t |> x) == size f t + f x } @-}
-lem_add_r :: (a -> Int) -> a -> FingerTree a -> Proof
-lem_add_r f a Empty = trivial
-lem_add_r f a (Single _) = trivial
-lem_add_r f e (Deep l m (Four a b c d)) =
-    (f d + f e + size (nodeS f) (m |> Node3 a b c) + digitS f l) ? (lem_add_r (nodeS f) (Node3 a b c) m) ===
+{-@ lem_add_r :: t:FingerTree a -> f:(a -> Int) -> x:a -> { size f (t |> x) == size f t + f x } @-}
+lem_add_r :: FingerTree a -> (a -> Int) -> a -> Proof
+lem_add_r Empty f a = trivial
+lem_add_r (Single _) f a = trivial
+lem_add_r (Deep l m (Four a b c d)) f e =
+    (f d + f e + size (nodeS f) (m |> Node3 a b c) + digitS f l) ? (lem_add_r m (nodeS f) (Node3 a b c)) ===
     (f d + f e + size (nodeS f) m + nodeS f (Node3 a b c) + digitS f l) *** QED
-lem_add_r f a (Deep l m r) = snocDigit r a *** QED
+lem_add_r (Deep l m r) f a = snocDigit r a *** QED
         
 
 {-@ fromListR :: xs:[a] -> {ft : FingerTree a | fingerTreeSize ft == len xs} @-}
