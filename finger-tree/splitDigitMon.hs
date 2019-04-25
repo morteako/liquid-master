@@ -8,10 +8,9 @@ module SplitDigit
     un,
     cons,
     (++),
-    app_lemma_help2,
     append_assoc,
     append_id_right,
-    splitDigit,
+    splitDigitMon,
     Split
 ) where
 
@@ -232,117 +231,113 @@ split_lemma_p_mon ap e assoc identity measure p i (a:as) prnp prp
             *** QED
 
 
-
---- OLD
-
-{-@ split_lemma_p :: 
-    p:([a] -> Bool) -> 
-    i:[a] -> 
-    {t:[a] | len t != 0 } -> 
-    prnp:{ Proof | not (p i) } ->
-    prp :{ Proof | p (i ++ t) } ->
-    { (not (p i) && p (i ++ t)) 
+{-@ split_lemma_app :: 
+       ap:(v -> v -> v)
+    -> e : v
+    -> assoc: (x:v -> y:v -> z:v -> {ap x (ap y z) = ap (ap x y) z})
+    -> identity : (x:v-> {ap x e = x && ap e x = x})
+    -> mes:(a -> v) 
+    -> p:(v -> Bool)  
+    -> i:v
+    -> t:Digit a
+    -> prnp:{ Proof | not (p i) } 
+    -> prp:{ Proof | p (ap i (measureList ap e mes t)) } 
+    -> { (not (p i) && p (ap i (measureList ap e mes t))) 
         => 
-            (p (i ++ getL (splitDigit p i t) ++ [getX (splitDigit p i t)] ) ) } / [len t] 
+            getL (splitDigitMon ap mes p i t) ++ [getX (splitDigitMon ap mes p i t)] ++ getR (splitDigitMon ap mes p i t) == t 
+        } / [len t] 
+        
 @-}
-split_lemma_p :: ([a] -> Bool) -> [a] -> [a] -> Proof -> Proof -> Proof 
-split_lemma_p p i [a] prnp prp
-    =   p (i ++ getL (splitDigit p i [a]) ++ [getX (splitDigit p i [a])])
-    === p (i ++ getL (Split [] a []) ++ [getX (Split [] a [])])
-    === p (i ++ [] ++ [a]) ? append_assoc i [] [a]
-    === p (i ++ ([] ++ [a]))
-    === p (i ++ [a])
+split_lemma_app ::(v -> v -> v) -> v -> (v -> v -> v -> Proof) -> (v -> Proof) -> (a -> v) -> (v -> Bool) -> v -> [a] -> Proof -> Proof -> Proof 
+split_lemma_app ap e assoc identity measure p i [a] prnp prp
+    =   getL (splitDigitMon ap measure p i [a]) ++ [getX (splitDigitMon ap measure p i [a])] ++ getR (splitDigitMon ap measure p i [a])  
+    === getL (Split [] a []) ++ [getX (Split [] a [])] ++ getR (Split [] a [])
+    === [] ++ [a] ++ [] ? append_id_right [a] 
+    === [a]
     *** QED
-split_lemma_p p i (a:as) prnp prp
+split_lemma_app ap e assoc identity measure p i (a:as) prnp prp
     | p i'
-    =   p (i ++ getL (splitDigit p i (a:as)) ++ [getX (splitDigit p i (a:as))] )
-    === p (i ++ getL (Split [] a as) ++ [getX (Split [] a as)])
-    === p (i ++ [] ++ [a]) ? append_assoc i [] [a]
-    === p (i ++ [a])
+    =   getL (splitDigitMon ap measure p i (a:as)) ++ [getX (splitDigitMon ap measure p i (a:as))] ++ getR (splitDigitMon ap measure p i (a:as))  
+    === getL (Split [] a as) ++ [getX (Split [] a as)] ++ getR (Split [] a as)  
+    === [] ++ [a] ++ as
+    === (a:as)
     *** QED
-    | not (p i') =   
-    let recur = let Split l x r = splitDigit p i' as in Split (a:l) x r ? help i a l &&& split_lemma_p p i' as (not (p i') *** QED) (app_lemma_help2 i a as) 
-    in  p (i ++ getL (splitDigit p i (a:as)) ++ [getX (splitDigit p i (a:as))] )
-    === p (i ++ getL recur ++ [getX recur])
-    *** QED
-        where
-            i' = i ++ (a:[])
-
-{-@ reflect splitDigit @-}
-{-@ splitDigit :: p:([a] -> Bool) -> i:[a] -> {t:[a] | len t >= 1 } -> s:Split a @-}
-splitDigit :: ([a] -> Bool) -> [a] -> [a] -> Split a
-splitDigit p i [a] = Split [] a []
-splitDigit p i (a:as) 
-    | p i' = Split [] a as
-    | otherwise = let Split l x r = splitDigit p i' as in Split (a:l) x r
-        where
-            i' = i ++ [a]
-
-
-{-@ split_lemma_notp :: 
-    p:([a] -> Bool) -> 
-    i:[a] -> 
-    {t:[a] | len t != 0 } -> 
-    prnp:{ Proof | not (p i) } ->
-    prp:{ Proof | p (i ++ t) } ->
-    { (not (p i) && p (i ++ t)) 
-        => 
-            not (p (i ++ getL (splitDigit p i t))) } / [len t] 
-@-}
-split_lemma_notp :: ([a] -> Bool) -> [a] -> [a] -> Proof -> Proof -> Proof 
-split_lemma_notp p i [a] prnp prp
-    =   not (p (i ++ getL (splitDigit p i [a])))
-    === not (p (i ++ [])) ? append_id_right i
-    === not (p i)
-    *** QED
-split_lemma_notp p i (a:as) prnp prp
-    | p i'
-    =   not (p (i ++ getL (splitDigit p i (a:as))))
-    === not (p (i ++ [])) ? append_id_right i
-    === not (p i)
-    *** QED 
     | not (p i')
-    =   let Split l x r = splitDigit p i' as in Split (a:l) x r ? help i a l &&& split_lemma_notp p i' as (not (p i') *** QED) (app_lemma_help2 i a as)
-    *** QED
-        where
-            i' = i ++ [a]
---((i ++ [a]) ++ l) == (i ++ cons a l
---((i <> mes a) <> mesList l) == (i <> mesList (a:l)
+    =
+        let recur = 
+                let 
+                    Split l x r = splitDigitMon ap measure p i' as 
+                    lemma_l 
+                            =   p (ap i (measureList ap e measure (a:l)))
+                            === p (ap i (ap (measure a) (measureList ap e measure l))) ? assoc i (measure a) (measureList ap e measure l) 
+                            === p (ap (ap i (measure a)) (measureList ap e measure l))
+                            *** QED
+                in 
+                    Split (a:l) x r ? 
+                        lemma_l
+                        &&&
+                        split_lemma_app 
+                            ap 
+                            e 
+                            assoc 
+                            identity 
+                            measure 
+                            p 
+                            i' 
+                            as 
+                            (not (p i') *** QED) 
+                            lemma_i_a_as_assoc   
+        in  getL (splitDigitMon ap measure p i (a:as)) ++ [getX (splitDigitMon ap measure p i (a:as))] ++ getR (splitDigitMon ap measure p i (a:as)) 
+        === getL recur ++ [getX recur] ++ getR recur 
+        === cons a as
+        === a:as
+        *** QED
+            where
+                i' = i `ap` measure a
+                lemma_i_a_as_assoc 
+                    =   p (ap i (measureList ap e measure (a:as)))
+                    === p (ap i (ap (measure a) (measureList ap e measure as))) ? assoc i (measure a) (measureList ap e measure as) 
+                    === p (ap (ap i (measure a)) (measureList ap e measure as))
+                    *** QED
+                
+{-@ split_digit_proof :: 
+       ap:(v -> v -> v)
+    -> e : v
+    -> assoc: (x:v -> y:v -> z:v -> {ap x (ap y z) = ap (ap x y) z})
+    -> identity : (x:v-> {ap x e = x && ap e x = x})
+    -> mes:(a -> v) 
+    -> p:(v -> Bool)  
+    -> i:v
+    -> t:Digit a
+    -> prnp:{ Proof | not (p i) } 
+    -> prp:{ Proof | p (ap i (measureList ap e mes t)) } 
+    -> { (not (p i) && p (ap i (measureList ap e mes t))) 
+        => 
+            (getL (splitDigitMon ap mes p i t) ++ [getX (splitDigitMon ap mes p i t)] ++ getR (splitDigitMon ap mes p i t) == t )
+            &&
+            (not (p (ap i (measureList ap e mes (getL (splitDigitMon ap mes p i t))))))
+            &&
+            (p (ap (ap i (measureList ap e mes (getL (splitDigitMon ap mes p i t)))) (mes (getX (splitDigitMon ap mes p i t)))))
+        } / [len t] 
+@-}    
+split_digit_proof ::(v -> v -> v) -> v -> (v -> v -> v -> Proof) -> (v -> Proof) -> (a -> v) -> (v -> Bool) -> v -> [a] -> Proof -> Proof -> Proof 
+split_digit_proof ap e assoc identity measure p i t prnp prp = 
+    split_lemma_app ap e assoc identity measure p i t prnp prp
+    &&&
+    split_lemma_notp_mon ap e assoc identity measure p i t prnp prp
+    &&&
+    split_lemma_p_mon ap e assoc identity measure p i t prnp prp
 
-{-@ help :: i:[a] -> a:a -> l:[a] -> { ((i ++ [a]) ++ l) == (i ++ cons a l)  } @-}
-help :: [a] -> a -> [a] -> Proof
-help [] a l = trivial 
-help (x:xs) a l
-    =   (((x:xs) ++ [a]) ++ l) ? append_assoc (x:xs) [a] l
-    === ((x:xs) ++ ([a] ++ l)) 
-    === ((x:xs) ++ (a:l))
-    === ((x:xs) ++ (a:l))
-    === ((x:xs) ++ cons a l)
-    *** QED
-
-
-{-@ app_lemma_help2 :: i:[a] -> a:a -> as:[a] -> { (i ++ [a]) ++ as == i ++ (cons a as) } @-}
-app_lemma_help2 :: [a] -> a -> [a] -> Proof
-app_lemma_help2 []      a as
-    =   ([] ++ [a]) ++ as
-    === [a] ++ as
-    === a:as
-    === [] ++ (a:as)
-    === [] ++ cons a as
-    *** QED
-app_lemma_help2 (x:xs)  a as
-    =   ((x:xs) ++ [a]) ++ as
-    === x:(xs ++ [a]) ++ as ? append_assoc xs [a] as
-    === x:(xs ++ ([a] ++ as)) 
-    === x:(xs ++ (a:as))
-    === (x:xs) ++ (a:as) 
-    === (x:xs) ++ cons a as 
-    *** QED
 
 
 
 
 
 
-main = do
-    print 1
+
+
+
+
+
+main = undefined
+    
