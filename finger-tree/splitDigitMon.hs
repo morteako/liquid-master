@@ -156,8 +156,117 @@ split_lemma_notp_mon ap e assoc identity measure p i (a:as) prnp prp
                     === p (ap (ap i (measure a)) (measureList ap e measure as))
                     *** QED
 
+{-@ split_lemma_p_mon :: 
+       ap:(v -> v -> v)
+    -> e : v
+    -> assoc: (x:v -> y:v -> z:v -> {ap x (ap y z) = ap (ap x y) z})
+    -> identity : (x:v-> {ap x e = x && ap e x = x})
+    -> mes:(a -> v) 
+    -> p:(v -> Bool)  
+    -> i:v
+    -> t:Digit a
+    -> prnp:{ Proof | not (p i) } 
+    -> prp:{ Proof | p (ap i (measureList ap e mes t)) } 
+    -> { (not (p i) && p (ap i (measureList ap e mes t))) 
+        => 
+            (p (ap (ap i (measureList ap e mes (getL (splitDigitMon ap mes p i t)))) (mes (getX (splitDigitMon ap mes p i t)))))
+        } / [len t] 
+@-}
+split_lemma_p_mon ::  (v -> v -> v) -> v -> (v -> v -> v -> Proof) -> (v -> Proof) -> (a -> v) -> (v -> Bool) -> v -> [a] -> Proof -> Proof -> Proof 
+split_lemma_p_mon ap e assoc identity measure p i [a] prnp prp 
+    =   p (ap (ap i (measureList ap e measure (getL (splitDigitMon ap measure p i [a])))) (measure (getX (splitDigitMon ap measure p i [a]))))
+    === p (ap (ap i (measureList ap e measure (getL (Split [] a [])))) (measure (getX (Split [] a []))))
+    === p (ap (ap i (measureList ap e measure [])) (measure a))
+    === p (ap (ap i e) (measure a)) ? identity i
+    === p (ap i (measure a))
+    === p (ap i (measure a)) ? identity (measure a)
+    === p (ap i (ap (measure a) e))
+    === p (ap i (measureList ap e measure [a]))
+    *** QED
+split_lemma_p_mon ap e assoc identity measure p i (a:as) prnp prp 
+    | p i'
+    =   p (ap (ap i (measureList ap e measure (getL (splitDigitMon ap measure p i (a:as))))) (measure (getX (splitDigitMon ap measure p i (a:as)))))
+    === p (ap (ap i (measureList ap e measure (getL (Split [] a as)))) (measure (getX (Split [] a as))))
+    === p (ap (ap i (measureList ap e measure [])) (measure a))
+    === p (ap (ap i e) (measure a)) ? identity i
+    === p (ap i (measure a))
+    === p (ap i (measure a)) ? identity (measure a)
+    === p (ap i (ap (measure a) e))
+    === p (ap i (measureList ap e measure [a]))
+    *** QED
+    
+    | not (p i')
+    =   
+        let recur = 
+                let 
+                    Split l x r = splitDigitMon ap measure p i' as 
+                    lemma_l 
+                            =   p (ap i (measureList ap e measure (a:l)))
+                            === p (ap i (ap (measure a) (measureList ap e measure l))) ? assoc i (measure a) (measureList ap e measure l) 
+                            === p (ap (ap i (measure a)) (measureList ap e measure l))
+                            *** QED
+                in 
+                    Split (a:l) x r ? 
+                        lemma_l
+                        &&&
+                        split_lemma_p_mon 
+                            ap 
+                            e 
+                            assoc 
+                            identity 
+                            measure 
+                            p 
+                            i' 
+                            as 
+                            (not (p i') *** QED) 
+                            lemma_i_a_as_assoc   
+        in  p (i `ap` measureList ap e measure (getL (splitDigitMon ap measure p i (a:as))) `ap` measure (getX (splitDigitMon ap measure p i (a:as))) )
+        === p (i `ap` measureList ap e measure (getL recur) `ap` measure (getX recur))
+        *** QED
+    where
+        i' = i `ap` measure a
+        lemma_i_a_as_assoc 
+            =   p (ap i (measureList ap e measure (a:as)))
+            === p (ap i (ap (measure a) (measureList ap e measure as))) ? assoc i (measure a) (measureList ap e measure as) 
+            === p (ap (ap i (measure a)) (measureList ap e measure as))
+            *** QED
+
+
 
 --- OLD
+
+{-@ split_lemma_p :: 
+    p:([a] -> Bool) -> 
+    i:[a] -> 
+    {t:[a] | len t != 0 } -> 
+    prnp:{ Proof | not (p i) } ->
+    prp :{ Proof | p (i ++ t) } ->
+    { (not (p i) && p (i ++ t)) 
+        => 
+            (p (i ++ getL (splitDigit p i t) ++ [getX (splitDigit p i t)] ) ) } / [len t] 
+@-}
+split_lemma_p :: ([a] -> Bool) -> [a] -> [a] -> Proof -> Proof -> Proof 
+split_lemma_p p i [a] prnp prp
+    =   p (i ++ getL (splitDigit p i [a]) ++ [getX (splitDigit p i [a])])
+    === p (i ++ getL (Split [] a []) ++ [getX (Split [] a [])])
+    === p (i ++ [] ++ [a]) ? append_assoc i [] [a]
+    === p (i ++ ([] ++ [a]))
+    === p (i ++ [a])
+    *** QED
+split_lemma_p p i (a:as) prnp prp
+    | p i'
+    =   p (i ++ getL (splitDigit p i (a:as)) ++ [getX (splitDigit p i (a:as))] )
+    === p (i ++ getL (Split [] a as) ++ [getX (Split [] a as)])
+    === p (i ++ [] ++ [a]) ? append_assoc i [] [a]
+    === p (i ++ [a])
+    *** QED
+    | not (p i') =   
+    let recur = let Split l x r = splitDigit p i' as in Split (a:l) x r ? help i a l &&& split_lemma_p p i' as (not (p i') *** QED) (app_lemma_help2 i a as) 
+    in  p (i ++ getL (splitDigit p i (a:as)) ++ [getX (splitDigit p i (a:as))] )
+    === p (i ++ getL recur ++ [getX recur])
+    *** QED
+        where
+            i' = i ++ (a:[])
 
 {-@ reflect splitDigit @-}
 {-@ splitDigit :: p:([a] -> Bool) -> i:[a] -> {t:[a] | len t >= 1 } -> s:Split a @-}
