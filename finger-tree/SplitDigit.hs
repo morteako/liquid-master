@@ -6,7 +6,6 @@
 module SplitDigit 
 (
     un,
-    cons,
     (++),
     append_assoc,
     append_id_right,
@@ -15,17 +14,16 @@ module SplitDigit
 ) where
 
 import Prelude hiding ((++))
-import Proof
+import Liquid.Haskell.ProofCombinators
 
 
 {-@ reflect un @-}
 un :: a
 un = un
 
---Because of errors using (:) in refinements
-{-@ reflect cons @-}
-{-@ cons :: x:a -> xs:[a] -> xxs:[a] @-}
-cons x xs = x:xs
+
+
+{-@ infix : @-}
 
 {-@ infix ++ @-}
 {-@ reflect ++ @-}
@@ -311,7 +309,6 @@ split_lemma_app ap e assoc identity measure p i (a:as) prnp prp
                             lemma_i_a_as_assoc   
         in  getL (splitDigitMon ap measure p i (a:as)) ++ [getX (splitDigitMon ap measure p i (a:as))] ++ getR (splitDigitMon ap measure p i (a:as)) 
         === getL recur ++ [getX recur] ++ getR recur 
-        === cons a as
         === a:as
         *** QED
             where
