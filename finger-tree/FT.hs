@@ -9,23 +9,25 @@ module FT where
 -- import Language.Haskell.Liquid.ProofCombinators 
 import Proof 
 
-{-@ measure digitSize @-}
-digitSize :: Digit a -> Int
-digitSize (One {}) = 1
-digitSize (Two {}) = 2
-digitSize (Three {}) = 3
-digitSize (Four {}) = 4
 
-data Digit a
-    = One a
-    | Two a a
-    | Three a a a
-    | Four a a a a
-    deriving (Show)
+
+-- data Digit a
+--     = One a
+--     | Two a a
+--     | Three a a a
+--     | Four a a a a
+--     deriving (Show)
+{-@ type Dig a = {v:[a] | len v >= 1 && len v <= 4} @-}
+type Digit a = [a]
 
 data Node a = Node2 {a2::a, b2::a} | Node3 {a3::a, b3::a, c3:: a}
     deriving (Show)
 
+{-@ data FingerTree a = 
+  Deep {lft::(Dig a) , mid::(FingerTree (Node a)), rft :: (Dig a)}
+  | Single a
+  |   Empty
+@-}
 data FingerTree a
     = Empty
     | Single a
@@ -43,19 +45,18 @@ size f (Single a)   = f a
 size f (Deep l m r) = digitS f l + size (nodeS f) m + digitS f r
 
 {-@ reflect digitS @-} 
+{-@ digitS :: (a -> Int) -> Dig a -> Int @-}
 digitS :: (a -> Int) -> Digit a -> Int
-digitS f (One a)        = f a
-digitS f (Two a b)      = f a + f b
-digitS f (Three a b c)  = f a + f b + f c
-digitS f (Four a b c d) = f a + f b + f c + f d
+digitS f [a]        = f a
+digitS f [a,b]      = f a + f b
+digitS f [a,b,c]  = f a + f b + f c
+digitS f [a,b,c,d] = f a + f b + f c + f d
 
 {-@ reflect nodeS @-}
 nodeS :: (a -> Int) -> Node a -> Int
 nodeS f (Node2 a b)   = f a + f b
 nodeS f (Node3 a b c) = f a + f b + f c
 
-{-@ reflect consts @-}
-consts a b = a
 
 {-@ reflect to1 @-}
 to1 :: a -> Int
@@ -66,14 +67,14 @@ n2Int1 :: Int -> Int -> Node Int
 n2Int1 a b = Node2 a b
 
 
-{-@ measure isEmpty @-}
-isEmpty Empty      = True
-isEmpty (Single _) = False
-isEmpty Deep{}     = False
+-- {-@ measure isEmpty @-}
+-- isEmpty Empty      = True
+-- isEmpty (Single _) = False
+-- isEmpty Deep{}     = False
 
-{-@ singleton :: v:Int -> {ft:FingerTree Int | isEmpty ft} @-}
-singleton :: Int -> FingerTree Int
-singleton a = Empty 
+-- {-@ singleton :: v:Int -> {ft:FingerTree Int | isEmpty ft} @-}
+-- singleton :: Int -> FingerTree Int
+-- singleton a = Empty 
 
 {-@ fromList :: xs:_ -> {t:_ | fingerTreeSize t == len xs} @-}
 fromList :: [a] -> FingerTree a
@@ -84,8 +85,8 @@ fromList (x:xs) = add x (fromList xs)
 {-@ reflect <| @-}
 (<|) :: a -> FingerTree a -> FingerTree a
 a <| Empty                    =  Single a
-a <| Single b                 =  Deep (One a) Empty (One b)
-a <| Deep (Four b c d e) m sf = Deep (Two a b) (Node3 c d e <| m) sf
+a <| Single b                 =  Deep [a] Empty [b]
+a <| Deep [b,c,d,e] m sf = Deep [a, b] (Node3 c d e <| m) sf
 a <| Deep l m r               = Deep (consDigit a l) m r 
 
 
@@ -93,9 +94,9 @@ a <| Deep l m r               = Deep (consDigit a l) m r
 {-@ reflect |> @-}
 (|>) ::FingerTree a -> a -> FingerTree a
 Empty |> a              =  Single a
-Single a |> b           =  Deep (One a) Empty (One b)
-Deep pr m (Four a b c d) |> e = 
-    Deep pr (m |> Node3 a b c) (Two d e)
+Single a |> b           =  Deep [a] Empty [b]
+Deep pr m [a,b,c,d] |> e = 
+    Deep pr (m |> Node3 a b c) [d, e]
 Deep pr m sf |> x     =
     Deep pr m (snocDigit sf x)
 
@@ -108,15 +109,15 @@ lem_add_l f _ Empty
   = trivial 
 lem_add_l f _ (Single {}) 
   = trivial 
-lem_add_l f a t@(Deep (Four b c d e) m sf) 
+lem_add_l f a t@(Deep [b,c,d,e] m sf) 
   =   size f t + f a 
-  === digitS f (Four b c d e) + size (nodeS f) m + digitS f sf + f a
+  === digitS f [b,c,d,e] + size (nodeS f) m + digitS f sf + f a
   === f a + f b + digitS f sf + f c + f d + f e + size (nodeS f) m 
   === f a + f b + digitS f sf + nodeS f (Node3 c d e) + size (nodeS f) m 
       ? lem_add_l (nodeS f) (Node3 c d e) m
   === f a + f b + digitS f sf + size (nodeS f) ((Node3 c d e) <| m)
-  === size f (Deep (Two a b) ((Node3 c d e) <| m) sf)
-  === size f (a <| (Deep (Four b c d e) m sf)) 
+  === size f (Deep [a, b] (Node3 c d e <| m) sf)
+  === size f (a <| (Deep [b,c,d,e] m sf)) 
   === size f (a <| t)
   *** QED  
 lem_add_l f a t@(Deep l m r)  
@@ -149,16 +150,16 @@ lem_add_r f _ Empty
   = trivial 
 lem_add_r f _ (Single {}) 
   = trivial 
-lem_add_r f x t@(Deep pr m (Four a b c d)) 
+lem_add_r f x t@(Deep pr m [a,b,c,d]) 
   =   size f t + f x 
-  === digitS f pr + size (nodeS f) m + digitS f (Four a b c d) + f x
+  === digitS f pr + size (nodeS f) m + digitS f [a,b,c,d] + f x
   === digitS f pr + size (nodeS f) m + f a +  f b + f c + f d + f x
   === digitS f pr + size (nodeS f) m + nodeS f (Node3 a b c) + f d + f x
       ? lem_add_r (nodeS f) (Node3 a b c) m
   === digitS f pr + size (nodeS f) (m |> Node3 a b c) + f d + f x
-  === digitS f pr + size (nodeS f) (m |> Node3 a b c) + digitS f (Two d x)
-  === size f (Deep pr (m |> Node3 a b c) (Two d x))
-  === size f (Deep pr m (Four a b c d) |> x) 
+  === digitS f pr + size (nodeS f) (m |> Node3 a b c) + digitS f [d, x]
+  === size f (Deep pr (m |> Node3 a b c) [d, x])
+  === size f (Deep pr m [a,b,c,d] |> x) 
   === size f (t |> x)
   *** QED  
 lem_add_r f a t@(Deep l m r)  
@@ -176,19 +177,18 @@ thm_add_r a t
 
 
 {-@ reflect consDigit @-}
-{-@ consDigit :: _ -> {d:Digit a | digitSize d < 4} -> _ @-}
+{-@ consDigit :: _ -> {d:Dig a | len d < 4} -> _ @-}
 consDigit :: a -> Digit a -> Digit a
-consDigit a (One b)        = Two a b
-consDigit a (Two b c)      = Three a b c
-consDigit a (Three b c d)  = Four a b c d
+consDigit x [a] = [x,a]
+consDigit x [a,b] = [x,a,b]
+consDigit x [a,b,c] = [x,a,b,c]
 
 {-@ reflect snocDigit @-}
-{-@ snocDigit :: {d:Digit a | digitSize d < 4} -> v:a -> {dd : Digit a | digitSize dd == digitSize d + 1} @-}
+{-@ snocDigit :: {d:Dig a | len d < 4} -> v:a -> {dd : Digit a | len dd == len d + 1} @-}
 snocDigit :: Digit a -> a -> Digit a
-snocDigit (One a) b = Two a b
-snocDigit (Two a b) c = Three a b c
-snocDigit (Three a b c) d = Four a b c d
-
+snocDigit [a] x = [a,x]
+snocDigit [a,b] x = [a,b,x]
+snocDigit [a,b,c] x = [a,b,c,x]
 
 
 
