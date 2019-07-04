@@ -1,22 +1,12 @@
-{-@ LIQUID "--no-termination" @-}
 {-@ LIQUID "--reflection"     @-}
 {-@ LIQUID "--no-adt"         @-}
-
 {-@ LIQUID "--ple"            @-}
 
 module FT where 
 
--- import Language.Haskell.Liquid.ProofCombinators 
 import Proof 
 
 
-
--- data Digit a
---     = One a
---     | Two a a
---     | Three a a a
---     | Four a a a a
---     deriving (Show)
 {-@ type Dig a = {v:[a] | len v >= 1 && len v <= 4} @-}
 type Digit a = [a]
 
@@ -66,15 +56,6 @@ to1 _ = 1
 n2Int1 :: Int -> Int -> Node Int
 n2Int1 a b = Node2 a b
 
-
--- {-@ measure isEmpty @-}
--- isEmpty Empty      = True
--- isEmpty (Single _) = False
--- isEmpty Deep{}     = False
-
--- {-@ singleton :: v:Int -> {ft:FingerTree Int | isEmpty ft} @-}
--- singleton :: Int -> FingerTree Int
--- singleton a = Empty 
 
 {-@ fromList :: xs:_ -> {t:_ | fingerTreeSize t == len xs} @-}
 fromList :: [a] -> FingerTree a
@@ -189,12 +170,6 @@ snocDigit :: Digit a -> a -> Digit a
 snocDigit [a] x = [a,x]
 snocDigit [a,b] x = [a,b,x]
 snocDigit [a,b,c] x = [a,b,c,x]
-
-
-
-
-
-
 
 
 
