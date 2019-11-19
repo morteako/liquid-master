@@ -1,0 +1,187 @@
+
+
+
+{-@ LIQUID "--ple" @-}
+{-@ LIQUID "--no-adt"         @-}
+{-@ LIQUID "--reflection"     @-}
+
+
+
+{-# LANGUAGE RankNTypes #-}
+
+import Language.Liquid.Haskell.ProofCombinators
+
+{-@ reflect un @-}
+{-@ lazy un @-}
+un = un
+
+{-@ reflect constfmap @-}
+{-@ constfmap :: f:(a -> b) -> c:Const m a -> cc:Const m c  @-}
+constfmap :: (a -> b) -> Const m a -> Const m c
+constfmap f (Const a) = Const a
+
+
+{-@ data Const a b = Const {unConst :: a} @-}
+data Const a b = Const {unConst :: a}
+
+ 
+{-@ data D = A | B  @-}
+data D = A | B deriving Show
+
+type FLens s t a b = forall f. (forall a b . (a -> b) -> f a -> f b) -> (a -> f b) -> s -> f t
+type FLens' s a = FLens s s a a
+
+{-@ data DPair = DPair {x :: D, y :: D} @-}
+data DPair = DPair {x :: D, y :: D} deriving Show
+
+{-@ reflect dpairFlipped @-}
+{-@ dpairFlipped :: D -> D -> DPair  @-}
+dpairFlipped :: D -> D -> DPair
+dpairFlipped y x = DPair x y
+
+{-@ reflect xLens @-}
+{-@  xLens :: FLens' DPair D @-} 
+xLens :: FLens' DPair D
+xLens fmap afb (DPair xx yy) = fmap (dpairFlipped yy) (afb xx)
+
+
+{-@ reflect view @-}
+view :: FLens s t a b -> s -> a
+view lens s = unConst (lens constfmap Const s)
+
+
+{-@ step0 :: x:D -> y:D -> { view xLens (DPair x y) == unConst (xLens constfmap Const (DPair x y)) } @-}
+step0 :: D -> D -> Proof
+step0 x y 
+    = trivial
+
+-- {-@ xLens_view_lemma :: x:D -> y:D -> { view xLens (DPair x y) == x} @-}
+-- xLens_view_lemma :: D -> D -> Proof
+-- xLens_view_lemma x y 
+--     =   view xLens (DPair x y) ? step0 x y
+--     ==. unConst (xLens constfmap Const (DPair x y))
+--     ==. unConst (constfmap (dpairFlipped y) (Const x)) 
+--     ==. unConst (Const x) 
+--     ==. x
+--     *** QED
+
+{-@ xLens_view_lemma_2 :: x:D -> y:D -> { view xLens (DPair x y) == x} @-}
+xLens_view_lemma_2 :: D -> D -> Proof
+xLens_view_lemma_2 x y 
+    = trivial 
+
+
+{-@ reflect set @-}
+{-@ set :: lens:FLens s t a b -> v:b -> val:s -> res:t @-}
+set :: FLens s t a b -> b -> s -> t
+set lens b s = runIdentity (lens idfmap (\_ -> Identity b) s)
+
+-- {-@ reflect viewD @-}
+-- viewD :: FLens DPair DPair D D -> DPair -> D
+-- viewD lens (DPair a b) = a
+
+-- {-@ xLens_2 :: v:D -> s:DPair -> { view xLens s == v}  @-}
+-- xLens_2 :: D -> DPair -> Proof
+-- xLens_2 i s@(DPair xx yy) =
+--     un *** QED
+    
+
+{-@ t :: d:D -> { view xLens (DPair d d) == d} @-}
+t :: D -> Proof
+t d 
+    =   view xLens (DPair d d)
+    === unConst (xLens constfmap Const (DPair d d))
+    === unConst (constfmap (\x -> DPair x d) (Const d))
+    === unConst (Const d)
+    === d
+    *** QED
+    
+    
+{-@ data Identity a = Identity {runIdentity :: a} @-}
+data Identity a = Identity {runIdentity :: a}
+
+{-@ reflect idfmap @-}
+{-@ idfmap :: f:(a -> b) -> ia:Identity a -> ib:Identity b @-}
+idfmap :: (a -> b) -> Identity a -> Identity b
+idfmap f (Identity a) = Identity (f a)
+
+{-@ reflect constIdentity @-}
+{-@ constIdentity :: x:a -> v:b -> r:Identity a @-}
+constIdentity :: a -> b -> Identity a
+constIdentity a _ = Identity a
+
+{-@ xLens_1 :: v:D -> s:DPair -> { view xLens v == v}  @-}
+xLens_1 :: D -> DPair -> Proof
+xLens_1 i s@(DPair xx yy)
+    = trivial -- view xLens (set xLens i s) 
+    -- === view xLens (runIdentity (xLens idfmap (constIdentity i) s)) 
+    -- === view xLens (runIdentity (idfmap (dpairFlipped yy) ((constIdentity i) s))) 
+    -- === view xLens (runIdentity (idfmap (dpairFlipped yy) (Identity i)))  
+    -- === view xLens (runIdentity (Identity (DPair i yy))) 
+    -- === view xLens (DPair i yy)  
+    -- === view xLens (runIdentity (idfmap (dpairFlipped yy) (Identity i))) 
+    -- === view xLens (runIdentity (Identity (DPair i yy))) 
+    -- === view xLens (DPair i yy) 
+    -- === un
+    -- *** QED
+
+main = do
+    print 1
+    
+Fixpoint.Types.dummyLoc:0:0-0:0: Error
+  elaborate makeKnowledge failed on:
+      is$Main.A Main.B == false
+      && is$Main.B Main.B == true
+      && is$Main.A Main.A == true
+      && is$Main.B Main.A == false
+      && Main.view Main.xLens i##a2ND == lqdc##$select##Main.DPair##1 i##a2ND
+      && is$Main.Const (Main.Const (lqdc##$select##Main.Const##1 (Main.Const (lqdc##$select##Main.DPair##1 i##a2ND)))) == true
+      && is$Main.Const (Main.Const (lqdc##$select##Main.DPair##1 i##a2ND)) == true
+      && lqdc##$select##Main.Const##1 (Main.Const (lqdc##$select##Main.Const##1 (Main.Const (lqdc##$select##Main.DPair##1 i##a2ND)))) == lqdc##$select##Main.Const##1 (Main.Const (lqdc##$select##Main.DPair##1 i##a2ND))
+      && lqdc##$select##Main.Const##1 (Main.Const (lqdc##$select##Main.DPair##1 i##a2ND)) == lqdc##$select##Main.DPair##1 i##a2ND
+      && Main.unConst (Main.Const (lqdc##$select##Main.Const##1 (Main.Const (lqdc##$select##Main.DPair##1 i##a2ND)))) == lqdc##$select##Main.Const##1 (Main.Const (lqdc##$select##Main.DPair##1 i##a2ND))
+      && Main.unConst (Main.Const (lqdc##$select##Main.DPair##1 i##a2ND)) == lqdc##$select##Main.DPair##1 i##a2ND
+      && is$Main.Const (Main.Const (lqdc##$select##Main.DPair##1 i##a2ND)) == true
+      && lqdc##$select##Main.Const##1 (Main.Const (lqdc##$select##Main.DPair##1 i##a2ND)) == lqdc##$select##Main.DPair##1 i##a2ND
+      && Main.unConst (Main.Const (lqdc##$select##Main.DPair##1 i##a2ND)) == lqdc##$select##Main.DPair##1 i##a2ND
+  with error
+      Cannot unify Main.DPair with Main.D in expression: lqdc##$select##Main.DPair##1 i##a2ND
+  in environment
+      Main.A := Main.D
+
+      Main.B := Main.D
+
+      Main.Const := func(2 , [@(0); (Main.Const @(0) @(1))])
+
+      Main.unConst := func(2 , [(Main.Const @(0) @(1)); @(0)])
+
+      Main.view := func(4 , [func(1 , [func(2 , [func(0 , [@(0); @(1)]);
+                                                 (@(0) @(0));
+                                                 (@(0) @(1))]);
+                                       func(0 , [@(2); (@(0) @(3))]);
+                                       @(0);
+                                       (@(0) @(1))]);
+                             @(0);
+                             @(2)])
+
+      Main.xLens := func(1 , [func(2 , [func(0 , [@(0); @(1)]);
+                                        (@(0) @(0));
+                                        (@(0) @(1))]);
+                              func(0 , [Main.D; (@(0) Main.D)]);
+                              Main.DPair;
+                              (@(0) Main.DPair)])
+
+      i##a2ND := Main.D
+
+      is$Main.A := func(0 , [Main.D; bool])
+
+      is$Main.B := func(0 , [Main.D; bool])
+
+      is$Main.Const := func(2 , [(Main.Const @(0) @(1)); bool])
+
+      lqdc##$select##Main.Const##1 := func(2 , [(Main.Const @(0) @(1));
+                                                @(0)])
+
+      lqdc##$select##Main.DPair##1 := func(0 , [Main.DPair; Main.D])
+
+...done

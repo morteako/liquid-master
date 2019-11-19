@@ -1,0 +1,158 @@
+{-@ LIQUID "--ple" @-}
+{-@ LIQUID "--no-adt"         @-}
+{-@ LIQUID "--reflection"     @-}
+
+{-# LANGUAGE RankNTypes #-}
+
+import Language.Liquid.Haskell.ProofCombinators
+
+type FLens s t a b = forall f. (forall a b . (a -> b) -> f a -> f b) -> (a -> f b) -> s -> f t
+
+data SetGet s t a b = SetGet { _set :: b -> s -> t, _get :: s -> a }
+
+{-@ toLens_set_iso :: setGet : SetGet s t a b -> s:s -> b:b -> { set (setGetToLens setGet) b s == setSetGet setGet b s } @-}
+toLens_set_iso :: SetGet s t a b -> s -> b -> Proof
+toLens_set_iso setGet s b = trivial
+
+lensToSetGet :: FLens s t a b -> SetGet s t a b
+lensToSetGet lens = SetGet setter getter
+    where
+        setter = set lens
+        getter = view lens
+
+{-@ reflect setGetToLens  @-}
+setGetToLens :: SetGet s t a b -> FLens s t a b
+setGetToLens (SetGet setter getter) fmap afb s = fmap (flip setter s) $ afb (getter s)
+
+{-@ reflect constfmap @-}
+{-@ constfmap :: f:(a -> b) -> c:Const m a -> cc:Const m c  @-}
+constfmap :: (a -> b) -> Const m a -> Const m c
+constfmap _ (Const a) = Const a
+
+
+{-@ data Const a b = Const {unConst :: a} @-}
+data Const a b = Const {unConst :: a}
+
+
+{-@ reflect view @-}
+view :: FLens s t a b -> s -> a
+view lens s = unConst (lens constfmap Const s)
+
+
+{-@ reflect set @-}
+{-@ set :: lens:FLens s t a b -> v:b -> val:s -> res:t @-}
+set :: FLens s t a b -> b -> s -> t
+set lens b s = runIdentity (lens idfmap (constIdentity b) s)
+
+{-@ reflect viewSetGet @-}
+viewSetGet :: SetGet s t a b -> s -> a
+viewSetGet (SetGet _ getter) s = getter s
+
+
+{-@ reflect setSetGet @-}
+{-@ setSetGet :: lens:SetGet s t a b -> v:b -> val:s -> res:t @-}
+setSetGet :: SetGet s t a b -> b -> s -> t
+setSetGet (SetGet setter _) b s = setter b s
+
+    
+{-@ data Identity a = Identity {runIdentity :: a} @-}
+data Identity a = Identity {runIdentity :: a}
+
+{-@ reflect idfmap @-}
+{-@ idfmap :: f:(a -> b) -> ia:Identity a -> ib:Identity b @-}
+idfmap :: (a -> b) -> Identity a -> Identity b
+idfmap f (Identity a) = Identity (f a)
+
+{-@ reflect constIdentity @-}
+{-@ constIdentity :: x:a -> v:b -> r:Identity a @-}
+constIdentity :: a -> b -> Identity a
+constIdentity a _ = Identity a
+
+
+
+|||||||||||
+
+                                                                                                                                     
+:1:1-1:1: Error                                                                                                                      
+  elaborate PLE1 570 failed on:                                                                                                      
+      ((isJust GHC.Base.Nothing <=> false))                                                                                          
+      && ((((is$GHC.Types.: GHC.Types.[] <=> false)                                                                                  
+            && (is$GHC.Types.[] GHC.Types.[] <=> true))                                                                              
+           && len GHC.Types.[] == 0))                                                                                                
+      && Main.set (Main.setGetToLens setGet##a2zw) b##a2zy s##a2zx == Main.runIdentity (fmap##a2zE (GHC.Base.flip (lqdc##$select##Mai
+n.SetGet##1 setGet##a2zw) s##a2zG) (afb##a2zF (lqdc##$select##Main.SetGet##2 setGet##a2zw s##a2zG)) Main.idfmap (Main.constIdentity b
+##a2zy) s##a2zx)                                                                                                                     
+      && Main.setSetGet setGet##a2zw b##a2zy s##a2zx == lqdc##$select##Main.SetGet##1 setGet##a2zw b##a2zy s##a2zx                   
+  with error                                                                                                                         
+      Cannot unify s##a2IL with s##a2Hs in expression: GHC.Base.flip (lqdc##$select##Main.SetGet##1 setGet##a2zw) s##a2zG << ceq2 >> 
+  in environment                                                                                                                     
+      GHC.Base.Nothing := func(1 , [(GHC.Base.Maybe @(0))])                                                                          
+                                                                                                                                     
+      GHC.Base.flip := func(3 , [func(0 , [@(0); @(1); @(2)]);                                                                       
+                                 @(1);                                                                                               
+                                 @(0);                                                                                               
+                                 @(2)])                                                                                              
+                                                                                                                                     
+      GHC.Types.[] := func(1 , [[@(0)]])                                                                                             
+                                                                                                                                     
+      Main.constIdentity := func(2 , [@(0); @(1); (Main.Identity @(0))])                                                             
+                                                                                                                                     
+      Main.idfmap := func(2 , [func(0 , [@(0); @(1)]);                                                                               
+                               (Main.Identity @(0));                                                                                 
+                               (Main.Identity @(1))])                                                                                
+                                                                                                                                     
+      Main.runIdentity := func(1 , [(Main.Identity @(0)); @(0)])                                                                     
+                                                                                                                                     
+      Main.set := func(4 , [func(1 , [func(2 , [func(0 , [@(0); @(1)]);                                                              
+                                                (@(0) @(0));                                                                         
+                                                (@(0) @(1))]);                                                                       
+                                      func(0 , [@(2); (@(0) @(3))]);                                                                 
+                                      @(0);                                                                                          
+                                      (@(0) @(1))]);                                                                                 
+                            @(3);                                                                                                    
+                            @(0);                                                                                                    
+                            @(1)])                                                                                                   
+                                                                                                                                     
+      Main.setGetToLens := func(5 , [(Main.SetGet @(0) @(1) @(2) @(3));                                                              
+                                     func(2 , [func(0 , [@(0); @(1)]); (@(0) @(0)); (@(0) @(1))]);                                   
+                                     func(0 , [@(2); (@(0) @(3))]);                                                                  
+                                     @(0);                                                                                           
+                                     (@(0) @(1))])                                                                                   
+                                                                                                                                     
+      Main.setSetGet := func(4 , [(Main.SetGet @(0) @(1) @(2) @(3));                                                                 
+                                  @(3);                                                                                              
+                                  @(0);                                                                                              
+                                  @(1)])                                                                                             
+                                                                                                                                     
+      afb##a2zF := func(0 , [a##a2Hu; (f##a2Hy b##a2Hv)])                                                                            
+                                                                                                                                     
+      b##a2zy := b##a2IO                                                                                                             
+                                                                                                                                     
+      fmap##a2zE := func(2 , [func(0 , [@(0); @(1)]);                                                                                
+                              (f##a2Hy @(0));                                                                                        
+                              (f##a2Hy @(1))])                                                                                       
+                                                                                                                                     
+      is$GHC.Types.: := func(1 , [[@(0)]; bool])                                                                                     
+                                                                                                                                     
+      is$GHC.Types.[] := func(1 , [[@(0)]; bool])                                                                                    
+                                                                                                                                     
+      isJust := func(1 , [(GHC.Base.Maybe @(0)); bool])                                                                              
+                                                                                                                                     
+      len := func(2 , [(@(0) @(1)); int])                                                                                            
+                                                                                                                                     
+      lqdc##$select##Main.SetGet##1 := func(4 , [(Main.SetGet @(0) @(1) @(2) @(3));                                                  
+                                                 @(3);                                                                               
+                                                 @(0);                                                                               
+                                                 @(1)])                                                                              
+                                                                                                                                     
+      lqdc##$select##Main.SetGet##2 := func(4 , [(Main.SetGet @(0) @(1) @(2) @(3));                                                  
+                                                 @(0);                                                                               
+                                                 @(2)])                                                                              
+                                                                                                                                     
+      s##a2zG := s##a2Hs                                                                                                             
+                                                                                                                                     
+      s##a2zx := s##a2IL                                                                                                             
+                                                                                                                                     
+      setGet##a2zw := (Main.SetGet s##a2IL t##a2IM a##a2IN b##a2IO)                                                                  
+                                                                                                                                     
+...done                                                                                                                              

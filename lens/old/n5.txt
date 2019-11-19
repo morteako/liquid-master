@@ -1,0 +1,110 @@
+
+
+{-@ LIQUID "--exact-data-con" @-}
+{-@ LIQUID "--ple" @-}
+{-@ LIQUID "--higherorder"    @-}
+{-@ LIQUID "--no-adt"         @-}
+{-@ LIQUID "--reflection"     @-}
+
+
+
+{-# LANGUAGE RankNTypes #-}
+
+import Liquid.Haskell.ProofCombinators
+import Prelude hiding (fmap)
+
+{-@ reflect fmap @-}
+{-@ fmap :: f:(a -> b) -> fa:f a -> fb:f b  @-} 
+fmap :: (a -> b) -> f a -> f b
+fmap = un
+
+{-@ reflect un @-}
+un = un
+
+{-@ data Identity a = Identity {runIdentity :: a} @-}
+data Identity a = Identity {runIdentity :: a}
+
+
+{-@ reflect constfmap @-}
+{-@ constfmap :: f:(a -> b) -> c:Const m a -> cc:Const m c  @-}
+constfmap :: (a -> b) -> Const m a -> Const m c
+constfmap f (Const a) = Const a
+
+{-@ reflect idfmap @-}
+idfmap f (Identity a) = Identity (f a)
+
+
+{-@ data Const a b = Const {unConst :: a} @-}
+data Const a b = Const {unConst :: a}
+
+
+--    
+{-@ data D = A | B  @-}
+data D = A | B deriving Show
+
+type Lens s t a b = forall f. (a -> f b) -> s -> f t
+type Lens' s a = Lens s s a a
+
+type FLens s t a b = forall f. (forall a b . (a -> b) -> f a -> f b) -> (a -> f b) -> s -> f t
+type FLens' s a = FLens s s a a
+
+{-@ data DPair = DPair {x :: D, y :: D} @-}
+data DPair = DPair {x :: D, y :: D} deriving Show
+
+{-@ reflect xLens @-}
+{-@  xLens :: FLens' DPair D @-} 
+xLens :: FLens' DPair D
+xLens fmap afb (DPair xx yy) = fmap (\x -> DPair x yy) (afb xx)
+
+-- yLens :: FLens' DPair D
+-- yLens fmap afb (DPair xx yy) = fmap (\y -> DPair xx y) (afb yy)
+
+{-@ reflect set @-}
+set :: FLens s t a b -> b -> s -> t
+set lens b s = runIdentity (lens idfmap (\_ -> Identity b) s)
+
+{-@ reflect view @-}
+view :: FLens s t a b -> s -> a
+view lens s = unConst (lens constfmap Const s)
+
+-- {-@ reflect viewD @-}
+-- viewD :: FLens DPair DPair D D -> DPair -> D
+-- viewD lens (DPair a b) = a
+
+-- {-@ xLens_2 :: v:D -> s:DPair -> { view xLens s == v}  @-}
+-- xLens_2 :: D -> DPair -> Proof
+-- xLens_2 i s@(DPair xx yy) =
+--     un *** QED
+    
+
+{-@ t :: d:D -> { view xLens (DPair d d) == d} @-}
+t :: D -> Proof
+t d 
+    =   view xLens (DPair d d)
+    === unConst (xLens constfmap Const (DPair d d))
+    === unConst (constfmap (\x -> DPair x d) (Const d))
+    === unConst (Const d)
+    === d
+    *** QED
+    
+    
+    
+
+-- {-@ xLens_1 :: v:D -> s:DPair -> { view xLens (set xLens v s) == v}  @-}
+-- xLens_1 :: D -> DPair -> Proof
+-- xLens_1 i s@(DPair xx yy) =
+--     view xLens (set xLens i s) ===
+--     -- view xLens (runIdentity (xLens idfmap (\_ -> Identity i) s)) ===
+--     -- view xLens (runIdentity (idfmap (\x -> DPair x yy) ((\_ -> Identity i) s))) ===
+--     -- view xLens (runIdentity (idfmap (\x -> DPair x yy) (Identity i)))  ===
+--     -- view xLens (runIdentity (Identity (DPair i yy))) ===
+--     -- view xLens (DPair i yy)  ===
+--     -- view xLens (runIdentity (idfmap (\x -> DPair x yy) (Identity i))) ===
+--     -- view xLens (runIdentity (Identity (DPair i yy))) ===
+--     -- view xLens (DPair i yy) ===
+--     un *** QED
+    
+
+
+main = do
+    print 1
