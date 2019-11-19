@@ -98,6 +98,14 @@ This warning is enabled by the -W flag: `ghci -W`
 ### Size verification
 `cd size_verification`
 
+`liquid FTsizeLeft.hs`
+    
+    This is the version from the thesis
+
+`liquid FTsizeRight.hs`
+
+    A version proving the same property, but uses addRight instead of addLeft.
+
 ### 5.2 - Proving the splitting theorem
 `cd 5.1`
 
