@@ -93,6 +93,8 @@ This warning is enabled by the -W flag: `ghci -W`
 
 ## Chapter 5
 
+`cd chapter5`
+
 ### Size verification
 `cd size_verification`
 
